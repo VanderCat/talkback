@@ -26,13 +26,13 @@ ELEVENLABS_VOICE_MODEL = "zcAOhNBS3c14rBihAFp1"
 
 SVC_SETTINGS =  {
     "modelDirLocation": ".\\models",
-    "autodetectModel": true,
+    "autodetectModel": True,
     "modelName": "Pony1",
 
     "speaker": 0,
 
     "transpose": 0,
-    "auto_predict_f0": false,
+    "auto_predict_f0": False,
     "f0_method": "dio",
 
     "cluster_infer_ratio": 0,
@@ -42,8 +42,6 @@ SVC_SETTINGS =  {
 
     "pad_seconds": 0.5,
     "chunk_seconds": 0.5,
-    "absolute_thresh": false,
+    "absolute_thresh": False,
     "max_chunk_seconds": 40,
-
-    "skip": false
 }
