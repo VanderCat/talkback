@@ -3,8 +3,16 @@ import pyaudio
 import soundfile as sf
 import numpy as np
 import whisper
-import scipy
 import g4f
+import el4f
+import compat
+import pydub
+import pydub.playback as pyb
+
+from so_vits_svc_fork.inference.core import Svc
+from so_vits_svc_fork.utils import get_optimal_device
+
+svc_device = get_optimal_device()
  
 RATE = 16000
 CHUNK_SIZE = 16000
@@ -32,19 +40,29 @@ stream =  audio.open(
         frames_per_buffer=CHUNK_SIZE, input_device_index=index
     )
 
+print("loading whisper")
 whisper_model = whisper.load_model(config.WHISPER_MODEL)
 
+print("loading svc")
+modelDefenition = compat.ModelDefenition(config.SVC_SETTINGS)
+svc_model = Svc(
+    net_g_path=modelDefenition.model.as_posix(),
+    config_path=modelDefenition.config.as_posix(),
+    cluster_model_path=modelDefenition.cluster.as_posix()
+    if modelDefenition.cluster
+    else None,
+    device=svc_device
+)
+
 buffer = b''
+audioBuff = None
 audStarted = False
 
 counter = 0
 def record():
     global counter
-    global buffer
-    global audStarted
+    global audioBuff
     if(counter > 30):
-        buffer = b''
-        audStarted = False
         return True
     data = stream.read(CHUNK_SIZE)
 
@@ -52,19 +70,17 @@ def record():
     
     rawAudio = np.frombuffer(data, np.int16).astype(np.float32)
 
-    audio = rawAudio*(1/32768.0)
-
     fileMean = 20*np.log10(np.sqrt(np.mean(np.absolute(rawAudio)**2)))
-    #print(fileMean)
+    print(fileMean)
 
     if (fileMean > config.NOISE_LEVEL):
-        #print(audio)
-        buffer+=data
-        audStarted = True
-    elif(audStarted):
-        audStarted = False
+        if (audioBuff is None):
+            audioBuff = rawAudio
+        else:
+            audioBuff = np.append(audioBuff, rawAudio)
+        counter+=1
+    elif not (audioBuff is None):
         return True
-    counter+=1
     return False
 
 print("listening...")
@@ -72,15 +88,14 @@ while True:
     recording = record()
     if (recording):
         print("running!")
-        rawAudio = np.frombuffer(buffer, np.int16).astype(np.float32)
-        audio = rawAudio*(1/32768.0)
+        audio = audioBuff*(1/32768.0)
+        audioBuff = None
         audio1 = whisper.pad_or_trim(audio)
         mel = whisper.log_mel_spectrogram(audio1).to(whisper_model.device)
         _, probs = whisper_model.detect_language(mel)
         print(f"Detected language: {max(probs, key=probs.get)}")
         options = whisper.DecodingOptions(fp16=False, language="ru")
         result = whisper.decode(whisper_model, mel, options)
-        scipy.io.wavfile.write("test.wav", 16000, rawAudio.astype('int16'))
         # print the recognized text
         buffer = b''
         print(result.text)
@@ -89,6 +104,29 @@ while True:
             messages=[{"role": "system", "content": config.SYSTEM_PROMPT}, {"role": "user", "content": result.text}],
         )
         print(response)
+        el4f.narrate(config.ELEVENLABS_VOICE_MODEL, response)
+        
+        audioCombined = sf.SoundFile("response.mp3").read()
+        
+        audioCombined = svc_model.infer_silence(
+            audioCombined.astype(np.float32),
+            speaker=modelDefenition.speaker,
+            transpose=modelDefenition.transpose,
+            auto_predict_f0=modelDefenition.auto_predict_f0,
+            cluster_infer_ratio=modelDefenition.cluster_infer_ratio,
+            noise_scale=modelDefenition.noise_scale,
+            f0_method=modelDefenition.f0_method,
+            db_thresh=modelDefenition.db_thresh,
+            pad_seconds=modelDefenition.pad_seconds,
+            chunk_seconds=modelDefenition.chunk_seconds,
+            absolute_thresh=modelDefenition.absolute_thresh,
+            max_chunk_seconds=modelDefenition.max_chunk_seconds,
+        )
+        sf.write("final.wav", audioCombined, svc_model.target_sample)
+
+        seg = pydub.AudioSegment.from_wav("final.wav")
+        pyb.play(seg)
+        
 
 stream.stop_stream()
 stream.close()

@@ -1,4 +1,4 @@
-NOISE_LEVEL = 30
+NOISE_LEVEL = 32
 
 WHISPER_MODEL = "small"
 
@@ -27,7 +27,7 @@ ELEVENLABS_VOICE_MODEL = "zcAOhNBS3c14rBihAFp1"
 SVC_SETTINGS =  {
     "modelDirLocation": ".\\models",
     "autodetectModel": True,
-    "modelName": "Pony1",
+    "modelName": "chechetov",
 
     "speaker": 0,
 
