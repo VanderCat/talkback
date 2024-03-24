@@ -5,9 +5,13 @@ import numpy as np
 import whisper
 import g4f
 import el4f
+#import eleven2
 import compat
 import pydub
 import pydub.playback as pyb
+#from elevenlabs_unleashed.tts import UnleashedTTS
+
+#tts = UnleashedTTS(nb_accounts=2, create_accounts_threads=2)
 
 from so_vits_svc_fork.inference.core import Svc
 from so_vits_svc_fork.utils import get_optimal_device
@@ -105,6 +109,7 @@ while True:
         )
         print(response)
         el4f.narrate(config.ELEVENLABS_VOICE_MODEL, response)
+        #eleven2.narrate("John", response)
         
         audioCombined = sf.SoundFile("response.mp3").read()
         
